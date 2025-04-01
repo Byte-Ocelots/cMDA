@@ -5,8 +5,8 @@ ehthumbs.db
 
 # Build directories
 bin/
-lib/
-tests/build/
+build/
+/lib/
 
 # Compiled object files and static/shared libraries
 *.o
