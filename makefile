@@ -77,7 +77,7 @@ LIB_OBJ_FILES = $(patsubst $(SRC_LIB_DIR)/%.c,$(BUILD_DIR)/lib_%.o,$(SRC_LIB_FIL
 
 # Find all .c files in the test directory
 TEST_FILES = $(wildcard $(TEST_DIR)/*.c)
-TEST_BIN_FILES = $(patsubst $(TEST_DIR)/%.c,$(TEST_DIR)/build/%,$(TEST_FILES))
+TEST_BIN_FILES = $(patsubst $(TEST_DIR)/%.c,$(TEST_DIR)/bin/%,$(TEST_FILES))
 
 # Define the static library
 STATIC_LIB = $(LIB_DIR)/libcMDA.a
@@ -195,25 +195,25 @@ tests: static $(TEST_BIN_FILES)
 tests-c : tests clean-o clean-d
 
 # Rule to compile each .c file in test into its corresponding binary
-$(TEST_DIR)/build/%: $(TEST_DIR)/%.c $(TEST_DIR)/%.d | $(TEST_DIR)/build
+$(TEST_DIR)/bin/%: $(TEST_DIR)/%.c $(TEST_DIR)/%.d | $(TEST_DIR)/bin
 	$(CC) $(CFLAGS) -o $@ $< -L$(LIB_DIR) -lcMDA -lm
 
 
 # --------------------------------- mkdir rules ---------------------------------
 
 # Create the bin, lib, and test directories if they don't exist
-$(BIN_DIR) $(BUILD_DIR) $(LIB_DIR) $(TEST_DIR)/build:
+$(BIN_DIR) $(BUILD_DIR) $(LIB_DIR) $(TEST_DIR)/bin:
 ifeq ($(OS),Windows_NT)
 ifeq ($(findstring bash,$(shell echo $$SHELL)),bash)
-	mkdir -p $(BIN_DIR) $(BUILD_DIR) $(LIB_DIR) $(TEST_DIR)/build
+	mkdir -p $(BIN_DIR) $(BUILD_DIR) $(LIB_DIR) $(TEST_DIR)/bin
 else
 	if not exist "$(BIN_DIR)" mkdir "$(BIN_DIR)"
 	if not exist "$(BUILD_DIR)" mkdir "$(BUILD_DIR)"
 	if not exist "$(LIB_DIR)" mkdir "$(LIB_DIR)"
-	if not exist "$(TEST_DIR)/build" mkdir "$(TEST_DIR)/build"
+	if not exist "$(TEST_DIR)/bin" mkdir "$(TEST_DIR)/bin"
 endif
 else
-	mkdir -p $(BIN_DIR) $(BUILD_DIR) $(LIB_DIR) $(TEST_DIR)/build
+	mkdir -p $(BIN_DIR) $(BUILD_DIR) $(LIB_DIR) $(TEST_DIR)/bin
 endif
 
 
