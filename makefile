@@ -56,7 +56,7 @@ all-c: all clean-o clean-d
 
 # Define directories
 SRC_MD_DIR = src/md
-SRC_LIB_DIR = src/lib
+SRC_LIB_DIR = src/cmda
 TEST_DIR = tests
 BIN_DIR = bin
 BUILD_DIR = build
@@ -107,7 +107,7 @@ clean-d:
 	$(eval INCLUDE_DEPS = 0)
 
 clean-static:
-	$(RM) $(subst /,$(SEP),$(STATIC_LIB))
+	$(RM) $(subst /,$(SEP),$(STATIC_LIB) $(LIB_DIR)/libcMD2.a $(LIB_DIR)/libcMD4.a $(LIB_DIR)/libcMD5.a)
 	$(eval INCLUDE_DEPS = 0)
 
 clean-shared:
