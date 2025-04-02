@@ -51,12 +51,12 @@ endif
 INCLUDE_DEPS = 1
 
 # Default target
-all: static shared build tests
+all: static shared bins tests
 all-c: all clean-o clean-d
 
 # Define directories
 SRC_MD_DIR = src/md
-SRC_LIB_DIR = src/cmda
+SRC_CMDA_DIR = src/cmda
 TEST_DIR = tests
 BIN_DIR = bin
 BUILD_DIR = build
@@ -72,8 +72,9 @@ MD_OTHER_OBJ_FILES = $(patsubst $(SRC_MD_DIR)/%.c, $(BUILD_DIR)/bin_%.o, $(SRC_M
 MD_BIN_FILES = $(patsubst $(SRC_MD_DIR)/%.c,$(BIN_DIR)/%,$(SRC_MD_MD_FILES))
 
 # Find all .c files in the src/lib directory
-SRC_LIB_FILES = $(wildcard $(SRC_LIB_DIR)/*.c)
-LIB_OBJ_FILES = $(patsubst $(SRC_LIB_DIR)/%.c,$(BUILD_DIR)/lib_%.o,$(SRC_LIB_FILES))
+SRC_CMDA_FILES = $(wildcard $(SRC_CMDA_DIR)/*.c)
+CMDA_OBJ_FILES = $(patsubst $(SRC_CMDA_DIR)/%.c,$(BUILD_DIR)/lib_%.o,$(SRC_CMDA_FILES))
+$(info $(CMDA_OBJ_FILES))
 
 # Find all .c files in the test directory
 TEST_FILES = $(wildcard $(TEST_DIR)/*.c)
@@ -84,7 +85,7 @@ STATIC_LIB = $(LIB_DIR)/libcMDA.a
 SHARED_LIB = $(LIB_DIR)/$(SHARED_FILE)
 
 # DEP FILES
-DEP_FILES = $(patsubst $(SRC_MD_DIR)/%.c, $(SRC_MD_DIR)/%.d, $(wildcard $(SRC_MD_DIR)/*.c)) $(patsubst $(SRC_LIB_DIR)/%.c, $(SRC_LIB_DIR)/%.d, $(SRC_LIB_FILES)) $(patsubst $(TEST_DIR)/%.c, $(TEST_DIR)/%.d, $(TEST_FILES))
+DEP_FILES = $(patsubst $(SRC_MD_DIR)/%.c, $(SRC_MD_DIR)/%.d, $(wildcard $(SRC_MD_DIR)/*.c)) $(patsubst $(SRC_CMDA_DIR)/%.c, $(SRC_CMDA_DIR)/%.d, $(SRC_CMDA_FILES)) $(patsubst $(TEST_DIR)/%.c, $(TEST_DIR)/%.d, $(TEST_FILES))
 
 
 # --------------------------------- clean rules ---------------------------------
@@ -99,7 +100,7 @@ clean-tests:
 	$(eval INCLUDE_DEPS = 0)
 
 clean-o:
-	$(RM) $(subst /,$(SEP),$(LIB_OBJ_FILES)) $(subst /,$(SEP),$(MD_MD_OBJ_FILES)) $(subst /,$(SEP),$(MD_OTHER_OBJ_FILES)) $(subst /,$(SEP),$(TEST_OBJ_FILES))
+	$(RM) $(subst /,$(SEP),$(CMDA_OBJ_FILES)) $(subst /,$(SEP),$(MD_MD_OBJ_FILES)) $(subst /,$(SEP),$(MD_OTHER_OBJ_FILES)) $(subst /,$(SEP),$(TEST_OBJ_FILES))
 	$(eval INCLUDE_DEPS = 0)
 
 clean-d:
@@ -117,6 +118,21 @@ clean-shared:
 clean: clean-bin clean-tests clean-o clean-static clean-shared clean-d
 
 
+# --------------------------------- mkdir rules ---------------------------------
+
+# Create the bin, lib, and test directories if they don't exist
+$(BUILD_DIR) $(BIN_DIR) $(LIB_DIR) $(TEST_DIR)/bin:
+ifeq ($(OS),Windows_NT)
+ifeq ($(findstring bash,$(shell echo $$SHELL)),bash)
+	mkdir -p $@
+else
+	if not exist $@ mkdir $@
+endif
+else
+	mkdir -p $@
+endif
+
+
 # --------------------------------- include rules ---------------------------------
 
 # Include the generated dependency files
@@ -129,7 +145,7 @@ $(SRC_MD_DIR)/%.d: $(SRC_MD_DIR)/%.c
 	$(CC) $(CFLAGS) -MM -MP -MF $@ $<
 
 # Rule to generate .d files for src/cmda/*.c
-$(SRC_LIB_DIR)/%.d: $(SRC_LIB_DIR)/%.c
+$(SRC_CMDA_DIR)/%.d: $(SRC_CMDA_DIR)/%.c
 	$(CC) $(CFLAGS) -MM -MP -MF $@ $<
 
 # Rule to generate .d files for tests/*.c
@@ -140,22 +156,22 @@ $(TEST_DIR)/%.d: $(TEST_DIR)/%.c
 # --------------------------------- build rules ---------------------------------
 
 # Build target for src/md files
-build: static $(DEP_FILES) $(MD_BIN_FILES)
-build-c: build clean-o clean-d
+bins: $(MD_BIN_FILES)
+bins-c: bin clean-o clean-d
 
 # Rule to compile each .c file into its corresponding .o object file
-$(BUILD_DIR)/bin_%.o: $(SRC_MD_DIR)/%.c $(STATIC_LIB) $(SRC_MD_DIR)/%.d | $(BUILD_DIR)
+$(BUILD_DIR)/bin_%.o: $(SRC_MD_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Rule to compile each .c file in src/md into its corresponding binary
-$(BIN_DIR)/%: $(BUILD_DIR)/bin_%.o $(MD_OTHER_OBJ_FILES) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -L$(LIB_DIR) -o $@ $^ -lcMDA -lm
+$(BIN_DIR)/%: $(BUILD_DIR)/bin_%.o $(MD_OTHER_OBJ_FILES) $(STATIC_LIB) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -L$(LIB_DIR) -o $@ $< $(MD_OTHER_OBJ_FILES) -lcMDA -lm
 
 
 # --------------------------------- shared and static lib rules ---------------------------------
 
 # Rule to compile each .c file in src/cmda into position-independent code (.o files)
-$(BUILD_DIR)/lib_%.o: $(SRC_LIB_DIR)/%.c $(SRC_LIB_DIR)/%.d
+$(BUILD_DIR)/lib_%.o: $(SRC_CMDA_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -fPIC -c -o $@ $< -lm
 
 libmd2: $(LIB_DIR)/libcMD2.a
@@ -176,16 +192,16 @@ static: $(DEP_FILES) $(STATIC_LIB)
 static-c: static clean-o clean-d
 
 # Rule to create the static library from src/cmda files
-$(STATIC_LIB): $(LIB_OBJ_FILES) | $(LIB_DIR)
-	ar rcs $@ $(LIB_OBJ_FILES)
+$(STATIC_LIB): $(CMDA_OBJ_FILES) | $(LIB_DIR)
+	ar rcs $@ $(CMDA_OBJ_FILES)
 
 # Build target for shared library
 shared: $(DEP_FILES) $(SHARED_LIB)
 shared-c : shared clean-o clean-d
 
 # Rule to create the shared library from src/cmda files
-$(SHARED_LIB): $(LIB_OBJ_FILES) | $(LIB_DIR)
-	$(CC) -shared $(_ARCH) -o $@ $(LIB_OBJ_FILES)
+$(SHARED_LIB): $(CMDA_OBJ_FILES) | $(LIB_DIR)
+	$(CC) -shared $(_ARCH) -o $@ $(CMDA_OBJ_FILES)
 
 
 # --------------------------------- test file rules ---------------------------------
@@ -197,24 +213,6 @@ tests-c : tests clean-o clean-d
 # Rule to compile each .c file in test into its corresponding binary
 $(TEST_DIR)/bin/%: $(TEST_DIR)/%.c $(TEST_DIR)/%.d | $(TEST_DIR)/bin
 	$(CC) $(CFLAGS) -o $@ $< -L$(LIB_DIR) -lcMDA -lm
-
-
-# --------------------------------- mkdir rules ---------------------------------
-
-# Create the bin, lib, and test directories if they don't exist
-$(BIN_DIR) $(BUILD_DIR) $(LIB_DIR) $(TEST_DIR)/bin:
-ifeq ($(OS),Windows_NT)
-ifeq ($(findstring bash,$(shell echo $$SHELL)),bash)
-	mkdir -p $(BIN_DIR) $(BUILD_DIR) $(LIB_DIR) $(TEST_DIR)/bin
-else
-	if not exist "$(BIN_DIR)" mkdir "$(BIN_DIR)"
-	if not exist "$(BUILD_DIR)" mkdir "$(BUILD_DIR)"
-	if not exist "$(LIB_DIR)" mkdir "$(LIB_DIR)"
-	if not exist "$(TEST_DIR)/bin" mkdir "$(TEST_DIR)/bin"
-endif
-else
-	mkdir -p $(BIN_DIR) $(BUILD_DIR) $(LIB_DIR) $(TEST_DIR)/bin
-endif
 
 
 # --------------------------------- install rules ---------------------------------
@@ -331,7 +329,7 @@ endif
 
 
 .PHONY: all shared build static tests clean
-.SECONDARY: $(MD_MD_OBJ_FILES) $(MD_OTHER_OBJ_FILES) $(LIB_OBJ_FILES) $(STATIC_LIB) $(SHARED_LIB)
+.SECONDARY: $(MD_MD_OBJ_FILES) $(MD_OTHER_OBJ_FILES) $(CMDA_OBJ_FILES) $(STATIC_LIB) $(SHARED_LIB)
 .NOTPARALLEL: static shared clean-bin clean-tests clean-o clean-static clean-shared clean-d
 .WAIT: static
 .IGNORE: clean clean-static clean-shared clean-o clean-d clean-bin clean-tests
