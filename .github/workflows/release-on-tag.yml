@@ -1,187 +1,181 @@
-name: Build and Release
+name: Release on Tag
 
 on:
   push:
-    tags:
-      - 'v*.*.*'  # Trigger on release tags like v1.0.0
+    tags: ['v*.*.*']
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
-  create-release:
-    name: Create GitHub Release
+  # ────────────────────────────────────────────────────────────────────
+  # Linux  (x86_64  &  i686)
+  # ────────────────────────────────────────────────────────────────────
+  linux:
+    name: Linux ${{ matrix.arch_label }}
     runs-on: ubuntu-latest
-
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-
+    strategy:
+      matrix:
+        include:
+          - arch_label: x86_64
+            arch_flag: 64
+          - arch_label: i686
+            arch_flag: 32
     steps:
-      - name: Create a Release
-        id: create_release
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          body: |
-            ## What's New
-            - Add your release notes here.
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
 
-  build-windows:
-    name: Build on Windows
-    runs-on: windows-latest
-    needs: create-release  # Make sure create-release runs before this job
-
-    steps:
-      # Checkout the repository
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      # Set up dependencies for Windows
-      - name: Set up dependencies
-        shell: cmd
-        run: |
-          choco install make  msys2 zip -y
-
-      - name: Set up mingw
-        shell: cmd
-        run: |
-          C:\tools\msys64\usr\bin\bash.exe --login -c "pacman -Syu --noconfirm"
-          C:\tools\msys64\usr\bin\bash.exe --login -c "pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-crt-git --noconfirm"
-          C:\tools\msys64\usr\bin\bash.exe --login -c "pacman -S mingw-w64-i686-gcc mingw-w64-i686-crt-git --noconfirm"
-          tree C:\tools\msys64 /f
-
-      # Run make all
-      - name: Build project (x64)
-        shell: cmd
-        run: |
-          set PATH=C:\tools\msys64\mingw64\bin;%PATH%
-          make clean CC=x86_64-w64-mingw32-gcc all
-
-      # Compress lib, bin, and include into a zip file
-      - name: Package files (x64)
-        shell: bash
-        run: |
-          mkdir -p package/bin/w64 package/lib/x86_64 package/include
-          cp -r bin/* package/bin/w64
-          cp -r include/* package/include
-          cp -r lib/* package/lib/x86_64
-          cp install.bat package
-          cd package
-          zip -r ../cMDA_win64.zip *
-          cd ..
-          rm -r package
-
-      # Run make all
-      - name: Build project (x32)
-        shell: cmd
-        run: |
-          set PATH=C:\tools\msys64\mingw32\bin;%PATH%
-          make clean CC=i686-w64-mingw32-gcc all
-
-      # Compress lib, bin, and include into a zip file
-      - name: Package files (x32)
-        shell: bash
-        run: |
-          mkdir -p package/bin/w32 package/lib/i686 package/include
-          cp -r bin/* package/bin/w32
-          cp -r include/* package/include
-          cp -r lib/* package/lib/i686
-          cp install.bat package
-          cd package
-          zip -r ../cMDA_win32.zip *
-          cd ..
-          rm -r package
-
-      # Upload the Windows ZIP file for release
-      - name: Upload Windows x64 asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./cMDA_win64.zip
-          asset_name: cMDA_win64.zip
-          asset_content_type: application/zip
-
-      # Upload the Windows ZIP file for release
-      - name: Upload Windows x64 asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./cMDA_win32.zip
-          asset_name: cMDA_win32.zip
-          asset_content_type: application/zip
-
-  build-linux:
-    name: Build on Linux
-    runs-on: ubuntu-latest
-    needs: create-release  # Make sure create-release runs before this job
-
-    steps:
-      # Checkout the repository
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      # Set up dependencies for Linux
-      - name: Install dependencies
+      - name: Install deps
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y build-essential tar libc6:i386 libc6-dev:i386 gcc-multilib g++-multilib
+          sudo apt-get install -y build-essential gcc-multilib libc6-dev:i386 zip
 
-      # Run make all
-      - name: Build project (x64)
+      - name: Build all
+        run: make clean all arch=${{ matrix.arch_flag }}
+
+      - name: Package — libs-only
         run: |
-          make clean all arch=64
+          mkdir -p pkg/libs-only
+          cp -r lib include pkg/libs-only/
+          tar -czf cMDA_linux-${{ matrix.arch_label }}_libs-only.tar.gz -C pkg/libs-only .
+          rm -rf pkg
 
-      # Compress lib, bin, and include into a tar file
-      - name: Package files (x64)
+      - name: Package — cli-only
         run: |
-          mkdir -p package
-          cp -r lib bin include package
-          tar -czf cMDA_linux64.tar.gz -C package .
-          rm -rf package
+          mkdir -p pkg/cli-only
+          cp -r bin pkg/cli-only/
+          tar -czf cMDA_linux-${{ matrix.arch_label }}_cli-only.tar.gz -C pkg/cli-only .
+          rm -rf pkg
 
-        # Run make all
-      - name: Build project (x32)
+      - name: Package — all
         run: |
-          make clean all arch=32
+          mkdir -p pkg/all
+          cp -r lib include bin pkg/all/
+          tar -czf cMDA_linux-${{ matrix.arch_label }}_all.tar.gz -C pkg/all .
+          rm -rf pkg
 
-      # Compress lib, bin, and include into a tar file
-      - name: Package files (x32)
-        run: |
-          mkdir -p package
-          cp -r lib bin include package
-          tar -czf cMDA_linux32.tar.gz -C package .
-          rm -rf package
-
-      # Upload the Linux TAR file for release
-      - name: Upload Linux x64 asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./cMDA_linux64.tar.gz
-          asset_name: cMDA_linux64.tar.gz
-          asset_content_type: application/gzip
+          files: |
+            cMDA_linux-${{ matrix.arch_label }}_libs-only.tar.gz
+            cMDA_linux-${{ matrix.arch_label }}_cli-only.tar.gz
+            cMDA_linux-${{ matrix.arch_label }}_all.tar.gz
 
+  # ────────────────────────────────────────────────────────────────────
+  # macOS  (x86_64  &  arm64)
+  # ────────────────────────────────────────────────────────────────────
+  macos:
+    name: macOS ${{ matrix.arch_label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch_label: x86_64
+            runner: macos-13
+          - arch_label: arm64
+            runner: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all
+        run: make clean all
 
-      # Upload the Linux TAR file for release
-      - name: Upload Linux x32 asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Package — libs-only
+        run: |
+          mkdir -p pkg/libs-only; cp -r lib include pkg/libs-only/
+          tar -czf cMDA_macos-${{ matrix.arch_label }}_libs-only.tar.gz -C pkg/libs-only .; rm -rf pkg
+
+      - name: Package — cli-only
+        run: |
+          mkdir -p pkg/cli-only; cp -r bin pkg/cli-only/
+          tar -czf cMDA_macos-${{ matrix.arch_label }}_cli-only.tar.gz -C pkg/cli-only .; rm -rf pkg
+
+      - name: Package — all
+        run: |
+          mkdir -p pkg/all; cp -r lib include bin pkg/all/
+          tar -czf cMDA_macos-${{ matrix.arch_label }}_all.tar.gz -C pkg/all .; rm -rf pkg
+
+      - uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./cMDA_linux32.tar.gz
-          asset_name: cMDA_linux32.tar.gz
-          asset_content_type: application/gzip
+          files: |
+            cMDA_macos-${{ matrix.arch_label }}_libs-only.tar.gz
+            cMDA_macos-${{ matrix.arch_label }}_cli-only.tar.gz
+            cMDA_macos-${{ matrix.arch_label }}_all.tar.gz
+
+  # ────────────────────────────────────────────────────────────────────
+  # Windows  (x86_64  &  i686)  — ZIP archives
+  # ────────────────────────────────────────────────────────────────────
+  windows:
+    name: Windows ${{ matrix.arch_label }}
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch_label: x86_64
+            toolchain: mingw-w64-x86_64-gcc
+            env_path: C:\msys64\mingw64\bin
+          - arch_label: i686
+            toolchain: mingw-w64-i686-gcc
+            env_path: C:\msys64\mingw32\bin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MinGW
+        shell: cmd
+        run: |
+          C:\msys64\usr\bin\bash.exe --login -c "pacman -Syu --noconfirm"
+          C:\msys64\usr\bin\bash.exe --login -c "pacman -S ${{ matrix.toolchain }} zip --noconfirm"
+
+      - name: Build
+        shell: cmd
+        run: |
+          set PATH=${{ matrix.env_path }};%PATH%
+          make clean all
+
+      - name: Package (bash)
+        shell: bash
+        run: |
+          make_zip(){ local tag=$1; shift; mkdir -p pkg; for d in "$@"; do cp -r "$d" pkg/; done
+            cd pkg; zip -r ../cMDA_windows-${{ matrix.arch_label }}_${tag}.zip .; cd ..; rm -rf pkg; }
+          make_zip libs-only lib include
+          make_zip cli-only  bin
+          make_zip all       lib include bin
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            cMDA_windows-${{ matrix.arch_label }}_libs-only.zip
+            cMDA_windows-${{ matrix.arch_label }}_cli-only.zip
+            cMDA_windows-${{ matrix.arch_label }}_all.zip
+
+  # ────────────────────────────────────────────────────────────────────
+  # Embedded  (AVR / ESP32 / ESP8266 / STM32)  — libs-only .tar.gz
+  # ────────────────────────────────────────────────────────────────────
+  embedded:
+    name: Embedded libs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cross-toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-avr avr-libc gcc-arm-none-eabi build-essential
+
+      - name: Build AVR
+        run: make avr
+
+      - name: Build STM32 (Cortex-M4)
+        run: make stm32
+
+      - name: Package embedded libs
+        run: |
+          for target in avr stm32; do
+            mkdir -p pkg; cp lib/libcMDA_${target}.a pkg/; cp -r include pkg/
+            tar -czf cMDA_${target}_libs-only.tar.gz -C pkg .; rm -rf pkg
+          done
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            cMDA_avr_libs-only.tar.gz
+            cMDA_stm32_libs-only.tar.gz

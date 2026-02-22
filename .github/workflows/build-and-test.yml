@@ -1,0 +1,111 @@
+name: Build and Test
+
+on:
+  push:       # all branches
+  pull_request:
+
+jobs:
+  # ── Linux ────────────────────────────────────────────────────────────
+  linux:
+    name: Linux (${{ matrix.arch }}-bit)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [64, 32]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y build-essential valgrind \
+            gcc-multilib libc6-dev:i386 \
+            gcc-avr avr-libc \
+            gcc-arm-none-eabi
+
+      - name: Build (arch=${{ matrix.arch }})
+        run: make clean all arch=${{ matrix.arch }}
+
+      - name: Run unit tests
+        run: ./tests/bin/test_all -v
+
+      - name: CLI smoke tests
+        run: bash tests/test_cli.sh
+
+      - name: Valgrind (64-bit only)
+        if: matrix.arch == 64
+        run: valgrind --leak-check=full --error-exitcode=1 ./tests/bin/test_all
+
+      - name: Cross-compile AVR (scalar lib)
+        if: matrix.arch == 64
+        run: |
+          make clean avr
+          ls lib/libcMDA_avr.a
+
+      - name: Cross-compile STM32 (scalar lib)
+        if: matrix.arch == 64
+        run: |
+          make clean stm32
+          ls lib/libcMDA_stm32.a
+
+  # ── macOS ────────────────────────────────────────────────────────────
+  macos:
+    name: macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-13
+          - arch: arm64
+            runner: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: make clean all
+
+      - name: Run unit tests
+        run: ./tests/bin/test_all -v
+
+      - name: CLI smoke tests
+        run: bash tests/test_cli.sh
+
+  # ── Windows ──────────────────────────────────────────────────────────
+  windows:
+    name: Windows (${{ matrix.arch }}-bit)
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: 64
+            toolchain: mingw-w64-x86_64-gcc
+            env_path: C:\msys64\mingw64\bin
+          - arch: 32
+            toolchain: mingw-w64-i686-gcc
+            env_path: C:\msys64\mingw32\bin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MinGW
+        shell: cmd
+        run: |
+          C:\msys64\usr\bin\bash.exe --login -c "pacman -Syu --noconfirm"
+          C:\msys64\usr\bin\bash.exe --login -c "pacman -S ${{ matrix.toolchain }} --noconfirm"
+
+      - name: Build
+        shell: cmd
+        run: |
+          set PATH=${{ matrix.env_path }};%PATH%
+          make clean all
+
+      - name: Run unit tests
+        shell: cmd
+        run: |
+          set PATH=${{ matrix.env_path }};%PATH%
+          tests\bin\test_all.exe -v
+
+      - name: CLI smoke tests
+        shell: cmd
+        run: tests\test_cli.bat

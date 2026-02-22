@@ -1,4 +1,4 @@
-#include "cMDA/md2.h"
+#include <cMDA/md2.h>
 #include "utils.h"
 
 /* Main function */
