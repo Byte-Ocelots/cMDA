@@ -20,9 +20,7 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt-get install -y build-essential valgrind \
-            gcc-multilib libc6-dev:i386 \
-            gcc-avr avr-libc \
-            gcc-arm-none-eabi
+            gcc-multilib libc6-dev:i386
 
       - name: Build (arch=${{ matrix.arch }})
         run: make clean all arch=${{ matrix.arch }}
@@ -36,18 +34,6 @@ jobs:
       - name: Valgrind (64-bit only)
         if: matrix.arch == 64
         run: valgrind --leak-check=full --error-exitcode=1 ./tests/bin/test_all
-
-      - name: Cross-compile AVR (scalar lib)
-        if: matrix.arch == 64
-        run: |
-          make clean avr
-          ls lib/libcMDA_avr.a
-
-      - name: Cross-compile STM32 (scalar lib)
-        if: matrix.arch == 64
-        run: |
-          make clean stm32
-          ls lib/libcMDA_stm32.a
 
   # ── macOS ────────────────────────────────────────────────────────────
   macos:
@@ -109,3 +95,43 @@ jobs:
       - name: CLI smoke tests
         shell: cmd
         run: tests\test_cli.bat
+
+  # ── Embedded ─────────────────────────────────────────────────────────
+  embedded:
+    name: Embedded (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [avr, stm32, esp32, esp8266]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Toolchain (AVR)
+        if: matrix.target == 'avr'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-avr avr-libc
+
+      - name: Install Toolchain (STM32)
+        if: matrix.target == 'stm32'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi
+
+      - name: Install Toolchain (ESP32)
+        if: matrix.target == 'esp32'
+        run: |
+          wget -q https://github.com/espressif/crosstool-NG/releases/download/esp-2022r1/xtensa-esp32-elf-gcc11_2_0-esp-2022r1-linux-amd64.tar.xz
+          tar -xf xtensa-esp32-elf-gcc11_2_0-esp-2022r1-linux-amd64.tar.xz
+          echo "$PWD/xtensa-esp32-elf/bin" >> $GITHUB_PATH
+
+      - name: Install Toolchain (ESP8266)
+        if: matrix.target == 'esp8266'
+        run: |
+          wget -q https://dl.espressif.com/dl/xtensa-lx106-elf-gcc8_4_0-esp-2020r3-linux-amd64.tar.gz
+          tar -xzf xtensa-lx106-elf-gcc8_4_0-esp-2020r3-linux-amd64.tar.gz
+          echo "$PWD/xtensa-lx106-elf/bin" >> $GITHUB_PATH
+
+      - name: Build
+        run: make clean ${{ matrix.target }}

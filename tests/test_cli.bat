@@ -8,7 +8,7 @@ set BIN=bin
 
 REM Helper: run binary, capture hash word (3rd token)
 REM ------ MD5 "abc" -------------------------------------------------------
-for /f "tokens=3" %%H in ('"%BIN%\md5" "abc"') do set HASH=%%H
+for /f "tokens=3" %%H in ('%BIN%\md5.exe "abc"') do set HASH=%%H
 if /i "!HASH!"=="900150983cd24fb0d6963f7d28e17f72" (
     echo PASS  md5^(abc^) = !HASH!
     set /a PASS+=1
@@ -18,7 +18,7 @@ if /i "!HASH!"=="900150983cd24fb0d6963f7d28e17f72" (
 )
 
 REM ------ MD5 --format upper -----------------------------------------------
-for /f "tokens=3" %%H in ('"%BIN%\md5" --format upper "abc"') do set HASH=%%H
+for /f "tokens=3" %%H in ('%BIN%\md5.exe --format upper "abc"') do set HASH=%%H
 if /i "!HASH!"=="900150983CD24FB0D6963F7D28E17F72" (
     echo PASS  md5 upper
     set /a PASS+=1
@@ -48,7 +48,7 @@ if !ERRORLEVEL!==1 (
 )
 
 REM ------ MD4 "a" -----------------------------------------------------------
-for /f "tokens=3" %%H in ('"%BIN%\md4" "a"') do set HASH=%%H
+for /f "tokens=3" %%H in ('%BIN%\md4.exe "a"') do set HASH=%%H
 if /i "!HASH!"=="bde52cb31de33e46245e05fbdbd6fb24" (
     echo PASS  md4^(a^)
     set /a PASS+=1
@@ -58,7 +58,7 @@ if /i "!HASH!"=="bde52cb31de33e46245e05fbdbd6fb24" (
 )
 
 REM ------ MD2 "a" -----------------------------------------------------------
-for /f "tokens=3" %%H in ('"%BIN%\md2" "a"') do set HASH=%%H
+for /f "tokens=3" %%H in ('%BIN%\md2.exe "a"') do set HASH=%%H
 if /i "!HASH!"=="32ec01ec4a6dac72c0ab96fb34c0b5d1" (
     echo PASS  md2^(a^)
     set /a PASS+=1
