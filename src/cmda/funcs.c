@@ -77,6 +77,7 @@ void set_cpu_supported_op(void){
 }
 
 /* ── MD5 T constants (floor(2^32*|sin(i)|), i=1..64) ────────────── */
+#if defined(CMDA_X86)
 static const uint32_t T[65]={0,
  0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,
  0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,
@@ -106,7 +107,6 @@ static inline uint32_t rl32(const uint8_t*p){
 /* ═══════════════════════════════════════════════════════════════════ */
 /* SSE2 — 4-lane multi-buffer (each lane = one independent message)  */
 /* ═══════════════════════════════════════════════════════════════════ */
-#if defined(CMDA_X86)
 /* Round functions: each operates on 4 messages simultaneously */
 #define VF4(b,c,d) _mm_or_si128(_mm_and_si128(b,c),_mm_andnot_si128(b,d))
 #define VG4(b,c,d) _mm_or_si128(_mm_and_si128(b,d),_mm_andnot_si128(d,c))
